@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/-TypeScript-black?style=for-the-badge&logoColor=white&logo=typescript&color=3178C6" alt="typescript" />
   </div>
 
-  <h1 align="center">🚀 PrepWise 🚀</h1>
+  <h1 align="center">🚀 IntervuAI 🚀</h1>
   <h3 align="center">AI-powered interview preparation platform</h3>
 
  
