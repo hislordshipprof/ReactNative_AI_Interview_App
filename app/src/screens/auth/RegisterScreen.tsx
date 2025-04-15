@@ -8,12 +8,16 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../../context/AuthContext';
 import LogoSvgComponent from '../../components/LogoSvgComponent';
+import { supabase } from '../../lib/supabase';
+import { uploadImage, uploadDocument } from '../../lib/storage-helpers';
+import { DeepLinkingConfig } from '../../lib/deepLinking';
 
 interface RegisterScreenProps {
   navigation: any;
@@ -27,6 +31,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<string | null>(null);
+  const [jobTitle, setJobTitle] = useState('');
+  const [industry, setIndustry] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePickImage = async () => {
@@ -66,18 +72,72 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!fullName || !email || !password) {
-      alert('Please fill in all required fields');
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
     setIsLoading(true);
     
     try {
-      await signUp(fullName, email, password);
-      // Navigation is handled by the auth context
-    } catch (error) {
-      alert('Registration failed. Please try again.');
-      console.error(error);
+      // Register user with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: fullName,
+            job_title: jobTitle,
+            industry: industry
+          },
+          emailRedirectTo: DeepLinkingConfig.redirectUrl,
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (data?.user) {
+        const userId = data.user.id;
+        
+        // Upload profile image if selected
+        let profileImageUrl = null;
+        if (profileImage) {
+          profileImageUrl = await uploadImage(profileImage, 'profiles', userId);
+        }
+        
+        // Upload resume if selected
+        let resumeUrl = null;
+        if (resumeFile) {
+          resumeUrl = await uploadDocument(resumeFile, 'resumes', userId, 'pdf');
+        }
+        
+        // Update user profile with additional data
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            avatar_url: profileImageUrl,
+            resume_url: resumeUrl,
+            job_title: jobTitle,
+            industry: industry || null  // Use null if industry is empty
+          })
+          .eq('id', userId);
+          
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+        }
+      }
+      
+      Alert.alert(
+        'Registration Successful', 
+        'Please check your email to verify your account.',
+        [
+          { text: 'OK', onPress: () => navigation.navigate('Login') }
+        ]
+      );
+      
+    } catch (error: any) {
+      console.error('Registration error:', error.message);
+      Alert.alert('Registration Failed', error.message);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -128,7 +188,29 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         </View>
         
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Profile picture</Text>
+          <Text style={styles.label}>Job Title (optional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="What position are you targeting?"
+            placeholderTextColor="#666"
+            value={jobTitle}
+            onChangeText={setJobTitle}
+          />
+        </View>
+        
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Industry (optional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="What industry do you work in?"
+            placeholderTextColor="#666"
+            value={industry}
+            onChangeText={setIndustry}
+          />
+        </View>
+        
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Profile picture (optional)</Text>
           <TouchableOpacity 
             style={styles.uploadButton}
             onPress={handlePickImage}
@@ -146,7 +228,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         </View>
         
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Resume</Text>
+          <Text style={styles.label}>Resume (optional)</Text>
           <TouchableOpacity 
             style={styles.uploadButton}
             onPress={handlePickResume}

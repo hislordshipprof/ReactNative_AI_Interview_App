@@ -22,7 +22,7 @@ const LogoComponent: React.FC<LogoComponentProps> = ({
     <View style={styles.container}>
       <Text style={[styles.logo, { color, fontSize: getFontSize() }]}>
         <Text style={styles.icon}>⟐ </Text>
-        PrepWise
+        IntervuAI
       </Text>
     </View>
   );

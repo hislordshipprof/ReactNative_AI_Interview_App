@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import LogoComponent from '../../components/LogoComponent';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Interview {
   id: string;
@@ -116,7 +117,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       backgroundColor: status === 'Technical' ? '#2D2B55' : '#3A3347',
     };
   };
-  
+  useEffect(() => {
+  AsyncStorage.clear();
+  }, []);
   const getIconBgColor = (icon: string) => {
     // Map icons to colors (simplified for demo)
     const colorMap: { [key: string]: string } = {
@@ -134,8 +137,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     return colorMap[icon] || '#666';
   };
 
-  const renderPastInterviewItem = ({ item }: { item: Interview }) => (
-    <View style={styles.interviewCard}>
+  const renderPastInterviewItem = (item: Interview) => (
+    <View key={item.id} style={styles.interviewCard}>
       <View style={styles.interviewHeader}>
         <View style={[styles.iconCircle, { backgroundColor: getIconBgColor(item.icon) }]}>
           <Text style={styles.iconText}>{item.icon}</Text>
@@ -168,8 +171,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     </View>
   );
   
-  const renderAvailableInterviewItem = ({ item }: { item: InterviewType }) => (
-    <View style={styles.interviewCard}>
+  const renderAvailableInterviewItem = (item: InterviewType) => (
+    <View key={item.id} style={styles.interviewCard}>
       <View style={styles.interviewHeader}>
         <View style={[styles.iconCircle, { backgroundColor: getIconBgColor(item.icon) }]}>
           <Text style={styles.iconText}>{item.icon}</Text>
@@ -238,13 +241,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Your Past Interviews</Text>
           
-          {pastInterviews.map(interview => renderPastInterviewItem({ item: interview }))}
+          {pastInterviews.map(interview => renderPastInterviewItem(interview))}
         </View>
         
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Pick Your Interview</Text>
           
-          {availableInterviews.map(interview => renderAvailableInterviewItem({ item: interview }))}
+          {availableInterviews.map(interview => renderAvailableInterviewItem(interview))}
         </View>
       </ScrollView>
     </SafeAreaView>
