@@ -1,5 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
+import { supabase } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
+import { DeepLinkingConfig } from '../lib/deepLinking';
 
 interface User {
   id: string;
@@ -28,20 +31,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Load user from storage or check if already logged in
-    // This is a placeholder for actual Firebase auth persistence
-    const loadStoredUser = async () => {
+    // Check for existing Supabase session and subscribe to auth changes
+    const loadUser = async () => {
       try {
-        // In a real app, we would load the user from async storage 
-        // or Firebase Auth's persistence
+        setIsLoading(true);
         
-        // Mock loading delay
-        setTimeout(() => {
-          // For demo purposes, we'll set the user to null (logged out)
-          setUser(null);
-          setIsLoading(false);
-          setInitialized(true);
-        }, 1000);
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          await handleSession(session);
+        }
+        
+        // Subscribe to auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            if (session) {
+              await handleSession(session);
+            } else {
+              setUser(null);
+            }
+          }
+        );
+
+        setIsLoading(false);
+        setInitialized(true);
+
+        // Cleanup subscription on unmount
+        return () => {
+          subscription.unsubscribe();
+        };
       } catch (error) {
         console.error('Failed to load authentication state:', error);
         setUser(null);
@@ -50,30 +69,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    loadStoredUser();
+    loadUser();
   }, []);
+
+  // Helper function to get user profile data and set the user state
+  const handleSession = async (session: Session) => {
+    // Get user profile data from Supabase
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return;
+    }
+
+    setUser({
+      id: session.user.id,
+      email: session.user.email || '',
+      name: profile?.name || '',
+    });
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
       
-      // Mock successful authentication
-      // In a real app, we would use Firebase auth here
-      setTimeout(() => {
-        // Mock user data
-        const userData: User = {
-          id: 'user123',
-          email,
-          name: 'John Doe',
-        };
-        
-        setUser(userData);
-        setIsLoading(false);
-      }, 1500);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-    } catch (error) {
+      if (error) {
+        throw error;
+      }
+      
       setIsLoading(false);
-      Alert.alert('Authentication Error', 'Failed to sign in. Please check your credentials.');
+    } catch (error: any) {
+      setIsLoading(false);
+      Alert.alert('Authentication Error', error.message || 'Failed to sign in');
     }
   };
 
@@ -81,23 +117,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Mock successful registration
-      // In a real app, we would use Firebase auth here
-      setTimeout(() => {
-        // Mock user data
-        const userData: User = {
-          id: 'user123',
-          email,
-          name,
-        };
-        
-        setUser(userData);
-        setIsLoading(false);
-      }, 1500);
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+          emailRedirectTo: DeepLinkingConfig.redirectUrl,
+        },
+      });
       
-    } catch (error) {
+      if (error) {
+        throw error;
+      }
+      
+      Alert.alert('Success', 'Registration successful! Please verify your email to continue.');
       setIsLoading(false);
-      Alert.alert('Registration Error', 'Failed to create account. Please try again.');
+    } catch (error: any) {
+      setIsLoading(false);
+      Alert.alert('Registration Error', error.message || 'Failed to create account');
     }
   };
 
@@ -105,16 +144,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Mock sign out
-      // In a real app, we would use Firebase auth here
-      setTimeout(() => {
-        setUser(null);
-        setIsLoading(false);
-      }, 500);
+      const { error } = await supabase.auth.signOut();
       
-    } catch (error) {
+      if (error) {
+        throw error;
+      }
+      
+      setUser(null);
       setIsLoading(false);
-      Alert.alert('Error', 'Failed to sign out.');
+    } catch (error: any) {
+      setIsLoading(false);
+      Alert.alert('Error', error.message || 'Failed to sign out');
     }
   };
 
